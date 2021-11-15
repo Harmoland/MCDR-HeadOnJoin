@@ -1,0 +1,17 @@
+{
+    "id": "head_on_join",
+    "version": "0.1.0",
+    "name": "HeadOnJoin",
+    "archive_name":"HeadOnJoin",
+    "description": {
+        "en_us": "Give player a head when he/she join. And give he/she another one when he/she has played for 100h.",
+        "zh_cn": "在玩家加入服务器时给他一个头，在其游玩满100h时再给一个"
+    },
+    "author": "Red_lnn",
+    "link": "https://github.com/Redlnn/MCDR-HeadOnJoin",
+    "dependencies": {
+        "mcdreforged": ">=2.0.0-alpha.1",
+        "pyyaml": "^6.0",
+        "regex": "^2021.11.1"
+    }
+}
