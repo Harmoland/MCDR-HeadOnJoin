@@ -15,25 +15,6 @@ save_folder: str
 serve_folder: str
 players_data: dict
 
-color_map = {
-    'black': RColor.black,
-    'dark_blue': RColor.dark_blue,
-    'dark_green': RColor.dark_green,
-    'dark_aqua': RColor.dark_aqua,
-    'dark_red': RColor.dark_red,
-    'dark_purple': RColor.dark_purple,
-    'gold': RColor.gold,
-    'gray': RColor.gray,
-    'dark_gray': RColor.dark_gray,
-    'blue': RColor.blue,
-    'green': RColor.green,
-    'aqua': RColor.aqua,
-    'red': RColor.red,
-    'light_purple': RColor.light_purple,
-    'yellow': RColor.yellow,
-    'white': RColor.white,
-}
-
 
 @new_thread('HeadOnJoin_ReadSave')
 def read_online_hour_from_save(player_uuid: str):
