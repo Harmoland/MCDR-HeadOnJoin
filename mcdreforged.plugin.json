@@ -1,6 +1,6 @@
 {
     "id": "head_on_join",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "name": "HeadOnJoin",
     "archive_name":"HeadOnJoin",
     "description": {
@@ -10,8 +10,6 @@
     "author": "Red_lnn",
     "link": "https://github.com/Redlnn/MCDR-HeadOnJoin",
     "dependencies": {
-        "mcdreforged": ">=2.0.0-alpha.1",
-        "pyyaml": "^6.0",
-        "regex": "^2021.11.1"
+        "mcdreforged": ">=2.0.0-alpha.1"
     }
 }

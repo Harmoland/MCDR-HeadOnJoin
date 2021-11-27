@@ -3,22 +3,27 @@
 
 import json
 import os
-from threading import Lock
+from logging import Logger
 
+import httpx
 import regex
 import yaml
-from mcdreforged.api.all import *
+from httpx import Response
+from mcdreforged.api.all import Info, PluginServerInterface, new_thread
 
-lock = Lock()
-
+logger: Logger
 save_folder: str
 serve_folder: str
-players_data: dict
+config: dict
 
 
 @new_thread('HeadOnJoin_ReadSave')
-def read_online_hour_from_save(player_uuid: str):
-    with open(os.path.join(os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json')) as f:
+def read_online_hour_from_save(player_uuid: str) -> int:
+    with open(
+        os.path.join(
+            os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json'
+        )
+    ) as f:
         player_stats = f.read()
     player_stats = json.loads(player_stats)
     online_ticks = player_stats['stats']['minecraft:custom']['minecraft:play_time']
@@ -29,12 +34,12 @@ def read_online_hour_from_save(player_uuid: str):
 
 
 @new_thread('HeadOnJoin_GiveHead')
-def give_head(server: PluginServerInterface, player_uuid: str, player_name):
-    if player_uuid not in players_data['players'].keys():
-        players_data['players'][player_uuid] = 0
-        server.save_config_simple(players_data, 'player.json')
-        if players_data['firstJoinSendToEnderChest']:
-            msg = players_data['message']['firstJoin']['toEnderChest']
+def give_head(server: PluginServerInterface, player_uuid: str, player_name: str):
+    if player_uuid not in config['players'].keys():
+        config['players'][player_uuid] = 0
+        server.save_config_simple(config, 'player.json')
+        if config['firstJoinSendToEnderChest']:
+            msg = config['message']['firstJoin']['toEnderChest']
             for i in regex.findall('&[0-9a-gk-r]', msg):
                 msg = msg.replace(i, '§' + i[1])
             msg = msg.replace('<player_name>', player_name)
@@ -47,37 +52,63 @@ def give_head(server: PluginServerInterface, player_uuid: str, player_name):
                 + '"}'
             )
         else:
-            msg = players_data['message']['firstJoin']['toHand']
+            msg = config['message']['firstJoin']['toHand']
             for i in regex.findall('&[0-9a-gk-r]', msg):
                 msg = msg.replace(i, '§' + i[1])
             msg = msg.replace('<player_name>', player_name)
             server.tell(player_name, msg)
-            server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
-    elif players_data['giveAnotherOneWhenPlay100h']:
-        online_hour = read_online_hour_from_save(player_uuid).get_return_value(block=True)
-        if online_hour >= 100 and players_data['players'][player_uuid] == 0:
-            players_data['players'][player_uuid] += 1
-            server.save_config_simple(players_data, 'player.json')
-            msg = players_data['message']['100hJoin']
+            server.execute(
+                'give '
+                + player_name
+                + ' minecraft:player_head{SkullOwner:"'
+                + player_name
+                + '"}'
+            )
+    elif config['giveAnotherOneWhenPlay100h']:
+        online_hour: int = read_online_hour_from_save(player_uuid).get_return_value(
+            block=True
+        )
+        if online_hour >= 100 and config['players'][player_uuid] == 0:
+            config['players'][player_uuid] += 1
+            server.save_config_simple(config, 'player.json')
+            msg = config['message']['100hJoin']
             for i in regex.findall('&[0-9a-gk-r]', msg):
                 msg = msg.replace(i, '§' + i[1])
             server.tell(player_name, msg)
-            server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
+            server.execute(
+                'give '
+                + player_name
+                + ' minecraft:player_head{SkullOwner:"'
+                + player_name
+                + '"}'
+            )
 
 
-def on_info(server: PluginServerInterface, info: Info):
-    re = regex.match(
-        r'(UUID\ of\ player\ )(\S+)(\ is\ )([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', info.content
+@new_thread('HeadOnJoin_GetUUID')
+def get_player_uuid(player_name: str) -> Response:
+    res: Response = httpx.get(
+        f'https://api.mojang.com/users/profiles/minecraft/{player_name}'
     )
-    if not re:
-        return
-    player_name = re.group(2)
-    player_uuid = re.group(4)
-    give_head(server, player_uuid, player_name).join()
+    return res
 
 
-def on_load(server: PluginServerInterface, prev):
-    global save_folder, serve_folder, players_data
+async def on_player_joined(server: PluginServerInterface, player_name: str, info: Info):
+    res = get_player_uuid(player_name).get_return_value(block=True)
+    if res.status_code == 200:
+        give_head(server, res.json()['id'], player_name).join()
+    else:
+        server.tell(player_name, config['message']['apiError'])
+        logger.error(
+            '无法获取玩家 {} 的 UUID，无法给予头颅。Mojang API 返回状态码：{}，返回内容：{}',
+            player_name,
+            res.status_code,
+            res.content,
+        )
+
+
+async def on_load(server: PluginServerInterface, prev):
+    global logger, save_folder, serve_folder, config
+    logger = server.logger
     default_config = {
         'message': {
             'firstJoin': {
@@ -85,12 +116,13 @@ def on_load(server: PluginServerInterface, prev):
                 'toHand': 'Hello, &c<player_name>!\\n&b看起来你是第一次加入服务器，送你一个头吧，要好好珍惜噢',
             },
             '100hJoin': '&9wow，&6今天是你在服务器游玩的第100个小时噢，送你一个头吧，要好好珍惜噢',
+            'apiError': '无法从 Mojang API 获取你的 UUID 因此无法给你发送头颅，请联系服务器管理员',
         },
         'firstJoinSendToEnderChest': True,
         'giveAnotherOneWhenPlay100h': True,
         'players': {},
     }
-    players_data = server.load_config_simple('player.json', default_config)
+    config = server.load_config_simple('player.json', default_config)
     with open(os.path.join(os.getcwd(), 'config.yml'), 'r', encoding='utf-8') as f:
         mcdr_config = f.read()
     mcdr_config = yaml.load(mcdr_config, Loader=yaml.FullLoader)
