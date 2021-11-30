@@ -4,6 +4,7 @@
 import json
 import os
 from logging import Logger
+from typing import Dict
 
 import httpx
 import regex
@@ -12,6 +13,7 @@ from httpx import Response
 from mcdreforged.api.all import Info, PluginServerInterface, new_thread
 
 logger: Logger
+players: Dict[str, str]
 save_folder: str
 serve_folder: str
 config: dict
@@ -19,11 +21,7 @@ config: dict
 
 @new_thread('HeadOnJoin_ReadSave')
 def read_online_hour_from_save(player_uuid: str) -> int:
-    with open(
-        os.path.join(
-            os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json'
-        )
-    ) as f:
+    with open(os.path.join(os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json')) as f:
         player_stats = f.read()
     player_stats = json.loads(player_stats)
     online_ticks = player_stats['stats']['minecraft:custom']['minecraft:play_time']
@@ -57,17 +55,9 @@ def give_head(server: PluginServerInterface, player_uuid: str, player_name: str)
                 msg = msg.replace(i, '§' + i[1])
             msg = msg.replace('<player_name>', player_name)
             server.tell(player_name, msg)
-            server.execute(
-                'give '
-                + player_name
-                + ' minecraft:player_head{SkullOwner:"'
-                + player_name
-                + '"}'
-            )
+            server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
     elif config['giveAnotherOneWhenPlay100h']:
-        online_hour: int = read_online_hour_from_save(player_uuid).get_return_value(
-            block=True
-        )
+        online_hour: int = read_online_hour_from_save(player_uuid).get_return_value(block=True)
         if online_hour >= 100 and config['players'][player_uuid] == 0:
             config['players'][player_uuid] += 1
             server.save_config_simple(config, 'player.json')
@@ -75,31 +65,41 @@ def give_head(server: PluginServerInterface, player_uuid: str, player_name: str)
             for i in regex.findall('&[0-9a-gk-r]', msg):
                 msg = msg.replace(i, '§' + i[1])
             server.tell(player_name, msg)
-            server.execute(
-                'give '
-                + player_name
-                + ' minecraft:player_head{SkullOwner:"'
-                + player_name
-                + '"}'
-            )
+            server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
 
 
 @new_thread('HeadOnJoin_GetUUID')
 def get_player_uuid(player_name: str) -> Response:
-    res: Response = httpx.get(
-        f'https://api.mojang.com/users/profiles/minecraft/{player_name}'
-    )
+    res: Response = httpx.get(f'https://api.mojang.com/users/profiles/minecraft/{player_name}')
     return res
 
 
+async def on_info(server: PluginServerInterface, info: Info):
+    re = regex.match(
+        r'(UUID\ of\ player\ )(\S+)(\ is\ )([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', info.content
+    )
+    if not re:
+        return
+    global players
+    player_name = re.group(2)
+    player_uuid = re.group(4)
+    players[player_name] = player_uuid
+
+
 async def on_player_joined(server: PluginServerInterface, player_name: str, info: Info):
-    res = get_player_uuid(player_name).get_return_value(block=True)
+    global players
+    for player in players.keys():
+        if player_name == player:
+            give_head(server, players[player_name], player_name).join()
+            del players[player_name]
+            return
+    res: Response = get_player_uuid(player_name).get_return_value(block=True)
     if res.status_code == 200:
         give_head(server, res.json()['id'], player_name).join()
     else:
         server.tell(player_name, config['message']['apiError'])
         logger.error(
-            '无法获取玩家 {} 的 UUID，无法给予头颅。Mojang API 返回状态码：{}，返回内容：{}',
+            '无法获取玩家 {} 的 UUID，因此无法给予头颅。Mojang API 返回状态码：{}，返回内容：{}',
             player_name,
             res.status_code,
             res.content,
