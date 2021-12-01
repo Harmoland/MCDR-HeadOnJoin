@@ -13,7 +13,7 @@ from httpx import Response
 from mcdreforged.api.all import Info, PluginServerInterface, new_thread
 
 logger: Logger
-players: Dict[str, str]
+players: Dict[str, str] = {}
 save_folder: str
 serve_folder: str
 config: dict
@@ -74,7 +74,7 @@ def get_player_uuid(player_name: str) -> Response:
     return res
 
 
-async def on_info(server: PluginServerInterface, info: Info):
+def on_info(server: PluginServerInterface, info: Info):
     re = regex.match(
         r'(UUID\ of\ player\ )(\S+)(\ is\ )([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', info.content
     )
@@ -86,7 +86,7 @@ async def on_info(server: PluginServerInterface, info: Info):
     players[player_name] = player_uuid
 
 
-async def on_player_joined(server: PluginServerInterface, player_name: str, info: Info):
+def on_player_joined(server: PluginServerInterface, player_name: str, info: Info):
     global players
     for player in players.keys():
         if player_name == player:
@@ -106,14 +106,14 @@ async def on_player_joined(server: PluginServerInterface, player_name: str, info
         )
 
 
-async def on_load(server: PluginServerInterface, prev):
+def on_load(server: PluginServerInterface, prev):
     global logger, save_folder, serve_folder, config
     logger = server.logger
     default_config = {
         'message': {
             'firstJoin': {
-                'toEnderChest': 'Hello, &c<player_name>!\\n&b看起来你是第一次加入服务器，那就送你一个头吧，已经放到你的末影箱里了，要好好珍惜噢',
-                'toHand': 'Hello, &c<player_name>!\\n&b看起来你是第一次加入服务器，送你一个头吧，要好好珍惜噢',
+                'toEnderChest': 'Hello, &c<player_name>!\n&b看起来你是第一次加入服务器，那就送你一个头吧，已经放到你的末影箱里了，要好好珍惜噢',
+                'toHand': 'Hello, &c<player_name>!\n&b看起来你是第一次加入服务器，送你一个头吧，要好好珍惜噢',
             },
             '100hJoin': '&9wow，&6今天是你在服务器游玩的第100个小时噢，送你一个头吧，要好好珍惜噢',
             'apiError': '无法从 Mojang API 获取你的 UUID 因此无法给你发送头颅，请联系服务器管理员',
