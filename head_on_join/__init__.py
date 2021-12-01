@@ -36,7 +36,7 @@ def give_head(server: PluginServerInterface, player_uuid: str, player_name: str)
     if player_uuid not in config['players'].keys():
         config['players'][player_uuid] = 0
         server.save_config_simple(config, 'player.json')
-        if config['firstJoinSendToEnderChest']:
+        if config['sendToEnderChestWhenFirstJoin']:
             msg = config['message']['firstJoin']['toEnderChest']
             for i in regex.findall('&[0-9a-gk-r]', msg):
                 msg = msg.replace(i, '§' + i[1])
@@ -56,7 +56,7 @@ def give_head(server: PluginServerInterface, player_uuid: str, player_name: str)
             msg = msg.replace('<player_name>', player_name)
             server.tell(player_name, msg)
             server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
-    elif config['giveAnotherOneWhenPlay100h']:
+    elif config['giveAnotherHeadWhenPlay100h']:
         online_hour: int = read_online_hour_from_save(player_uuid).get_return_value(block=True)
         if online_hour >= 100 and config['players'][player_uuid] == 0:
             config['players'][player_uuid] += 1
@@ -118,8 +118,8 @@ def on_load(server: PluginServerInterface, prev):
             '100hJoin': '&9wow，&6今天是你在服务器游玩的第100个小时噢，送你一个头吧，要好好珍惜噢',
             'apiError': '无法从 Mojang API 获取你的 UUID 因此无法给你发送头颅，请联系服务器管理员',
         },
-        'firstJoinSendToEnderChest': True,
-        'giveAnotherOneWhenPlay100h': True,
+        'sendToEnderChestWhenFirstJoin': True,
+        'giveAnotherHeadWhenPlay100h': True,
         'players': {},
     }
     config = server.load_config_simple('player.json', default_config)
@@ -129,7 +129,8 @@ def on_load(server: PluginServerInterface, prev):
     serve_folder = mcdr_config['working_directory']
     with open(os.path.join(os.getcwd(), serve_folder, 'server.properties')) as f:
         server_properties = f.read()
-    re_result = regex.search(r'(level-name=)(\S+)', server_properties)
-    if not re_result:
-        pass
-    save_folder = re_result.group(2)
+    re = regex.search(r'(level-name=)(\S+)', server_properties)
+    if re:
+        save_folder = re.group(2)
+    else:
+        save_folder = 'world'
