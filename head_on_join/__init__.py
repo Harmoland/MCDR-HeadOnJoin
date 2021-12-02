@@ -20,9 +20,13 @@ config: dict
 
 
 @new_thread('HeadOnJoin_ReadSave')
-def read_online_hour_from_save(player_uuid: str) -> int:
-    with open(os.path.join(os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json')) as f:
-        player_stats = f.read()
+def read_online_hour_from_save(server: PluginServerInterface, player_uuid: str, player_name: str) -> int:
+    try:
+        with open(os.path.join(os.getcwd(), serve_folder, save_folder, 'stats', f'{player_uuid}.json')) as f:
+            player_stats = f.read()
+    except FileNotFoundError:
+        first_join_give_gead(server, player_uuid, player_name)
+        return 0
     player_stats = json.loads(player_stats)
     online_ticks = player_stats['stats']['minecraft:custom']['minecraft:play_time']
     online_total_sec = int(online_ticks / 20)
@@ -31,33 +35,37 @@ def read_online_hour_from_save(player_uuid: str) -> int:
     return online_hour
 
 
+def first_join_give_gead(server: PluginServerInterface, player_uuid: str, player_name: str):
+    config['players'][player_uuid] = 0
+    server.save_config_simple(config, 'player.json')
+    if config['sendToEnderChestWhenFirstJoin']:
+        msg = config['message']['firstJoin']['toEnderChest']
+        for i in regex.findall('&[0-9a-gk-r]', msg):
+            msg = msg.replace(i, '§' + i[1])
+        msg = msg.replace('<player_name>', player_name)
+        server.tell(player_name, msg)
+        server.execute(
+            'item replace entity '
+            + player_name
+            + ' enderchest.0 with minecraft:player_head{SkullOwner:"'
+            + player_name
+            + '"}'
+        )
+    else:
+        msg = config['message']['firstJoin']['toHand']
+        for i in regex.findall('&[0-9a-gk-r]', msg):
+            msg = msg.replace(i, '§' + i[1])
+        msg = msg.replace('<player_name>', player_name)
+        server.tell(player_name, msg)
+        server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
+
+
 @new_thread('HeadOnJoin_GiveHead')
 def give_head(server: PluginServerInterface, player_uuid: str, player_name: str):
     if player_uuid not in config['players'].keys():
-        config['players'][player_uuid] = 0
-        server.save_config_simple(config, 'player.json')
-        if config['sendToEnderChestWhenFirstJoin']:
-            msg = config['message']['firstJoin']['toEnderChest']
-            for i in regex.findall('&[0-9a-gk-r]', msg):
-                msg = msg.replace(i, '§' + i[1])
-            msg = msg.replace('<player_name>', player_name)
-            server.tell(player_name, msg)
-            server.execute(
-                'item replace entity '
-                + player_name
-                + ' enderchest.0 with minecraft:player_head{SkullOwner:"'
-                + player_name
-                + '"}'
-            )
-        else:
-            msg = config['message']['firstJoin']['toHand']
-            for i in regex.findall('&[0-9a-gk-r]', msg):
-                msg = msg.replace(i, '§' + i[1])
-            msg = msg.replace('<player_name>', player_name)
-            server.tell(player_name, msg)
-            server.execute('give ' + player_name + ' minecraft:player_head{SkullOwner:"' + player_name + '"}')
+        first_join_give_gead(server, player_uuid, player_name)
     elif config['giveAnotherHeadWhenPlay100h']:
-        online_hour: int = read_online_hour_from_save(player_uuid).get_return_value(block=True)
+        online_hour: int = read_online_hour_from_save(server, player_uuid, player_name).get_return_value(block=True)
         if online_hour >= 100 and config['players'][player_uuid] == 0:
             config['players'][player_uuid] += 1
             server.save_config_simple(config, 'player.json')
