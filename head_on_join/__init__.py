@@ -10,7 +10,8 @@ import httpx
 import regex
 import yaml
 from httpx import Response
-from mcdreforged.api.all import Info, PluginServerInterface, new_thread
+from mcdreforged.api.decorator import new_thread
+from mcdreforged.api.types import Info, PluginServerInterface
 
 logger: Logger
 players: Dict[str, str] = {}
@@ -83,6 +84,8 @@ def get_player_uuid(player_name: str) -> Response:
 
 
 def on_info(server: PluginServerInterface, info: Info):
+    if not info.is_from_server and not info.content.startswith('UUID of player'):
+        return
     re = regex.match(
         r'(UUID\ of\ player\ )(\S+)(\ is\ )([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', info.content
     )
@@ -104,6 +107,8 @@ def on_player_joined(server: PluginServerInterface, player_name: str, info: Info
     res: Response = get_player_uuid(player_name).get_return_value(block=True)
     if res.status_code == 200:
         give_head(server, res.json()['id'], player_name).join()
+    elif res.status_code == 204:
+        return
     else:
         server.tell(player_name, config['message']['apiError'])
         logger.error(
