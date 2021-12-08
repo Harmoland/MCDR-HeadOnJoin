@@ -111,12 +111,7 @@ def on_player_joined(server: PluginServerInterface, player_name: str, info: Info
         return
     else:
         server.tell(player_name, config['message']['apiError'])
-        logger.error(
-            '无法获取玩家 {} 的 UUID，因此无法给予头颅。Mojang API 返回状态码：{}，返回内容：{}',
-            player_name,
-            res.status_code,
-            res.content,
-        )
+        logger.error(f'无法获取玩家 {player_name} 的 UUID，因此无法给予头颅。Mojang API 返回状态码：{res.status_code}，返回内容：{res.content}')
 
 
 def on_load(server: PluginServerInterface, prev):
