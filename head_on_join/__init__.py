@@ -12,6 +12,7 @@ import yaml
 from httpx import Response
 from mcdreforged.api.decorator import new_thread
 from mcdreforged.api.types import Info, PluginServerInterface
+from uuid import UUID
 
 logger: Logger
 players: Dict[str, str] = {}
@@ -94,7 +95,7 @@ def on_info(server: PluginServerInterface, info: Info):
     global players
     player_name = re.group(2)
     player_uuid = re.group(4)
-    players[player_name] = player_uuid
+    players[player_name] = str(UUID(player_uuid))
 
 
 def on_player_joined(server: PluginServerInterface, player_name: str, info: Info):
@@ -106,7 +107,7 @@ def on_player_joined(server: PluginServerInterface, player_name: str, info: Info
             return
     res: Response = get_player_uuid(player_name).get_return_value(block=True)
     if res.status_code == 200:
-        give_head(server, res.json()['id'], player_name).join()
+        give_head(server, str(UUID(res.json()['id'])) , player_name).join()
     elif res.status_code == 204:
         return
     else:
